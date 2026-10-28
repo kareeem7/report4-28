@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>لوحة الإدارة — بلاغ الحملة</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <span class="logo">🏥</span>
+  <div>
+    <h1>لوحة إدارة بلاغ الحملة القومية للتطعيم</h1>
+    <p>رفع شيت اليوم السابق · تجميع البيانات · فحص الأخطاء</p>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ① رفع شيت اليوم السابق -->
+  <section class="card">
+      <h2><span class="num">1</span> رفع بلاغ اليوم السابق (CSV أو إكسيل)</h2>
+    <p class="msg msg-info">هذا الشيت بياخدوه من الوحدات / الإدارة، وبيُستخدم عشان يحط التراكمي والرصيد أول اليوم للوحدات تلقائياً.</p>
+    <label>اختر ملف .csv أو .xlsx (البلاغ اليومي للإدارة)
+      <input type="file" id="xlsxFile" accept=".xlsx,.xls,.csv">
+    </label>
+    <div id="xlsxMsg" class="msg msg-info">لم يتم رفع أي ملف بعد.</div>
+    <label>كلمة سر الإدارة (لو السيرفر مفعّل عليها حماية) — تتكتب مرة واحدة على جهازك
+      <input type="password" id="adminKeyInput" placeholder="اتركها فاضية لو السيرفر مش محمي">
+    </label>
+    <div class="btns">
+      <button id="loadBaselineBtn" class="btn-blue">تحميل بيانات اليوم السابق</button>
+    </div>
+    <div id="serverMsg" class="msg msg-info">جاري فحص السيرفر…</div>
+    <p class="tip">📁 <b>وضع GitHub Pages:</b> حط ملف الشيت باسم <code>baseline.xlsx</code> جنب <code>index.html</code> وارفع الموقع تاني —
+كل الوحدات هتقراه لوحدها. الخانة اللي فوق للرفع على سيرفر (لو شغّلت <code>server.js</code>) أو لمعاينة ملف على جهازك.</p>
+  </section>
+
+  <!-- ①.١ تفاصيل الاستخراج -->
+  <section class="card" id="extractCard" style="display:none;">
+    <h2><span class="num">1.1</span> تفاصيل الاستخراج من البلاغ</h2>
+    <div id="extractSummary" class="msg msg-info"></div>
+    <div class="table-wrap">
+      <table id="extractTbl"></table>
+    </div>
+  </section>
+
+  <!-- ② تجميع البلاغ الحالي -->
+  <section class="card">
+    <h2><span class="num">2</span> بيانات الوحدات من الشيت المرفوع</h2>
+    <div class="grid g2">
+      <label>تاريخ البلاغ
+        <input type="date" id="curDate">
+      </label>
+      <label>شيت اليوم السابق (مُحمَّل)
+        <input type="text" id="baselineDateOut" readonly value="—">
+      </label>
+    </div>
+    <div id="aggMsg" class="msg msg-info">ارفع شيت اليوم السابق عشان تشوف بيانات كل الوحدات هنا.</div>
+    <div class="table-wrap">
+      <table id="tbl"></table>
+    </div>
+    <div class="btns">
+      <button id="aggPdfBtn" class="btn-primary">📄 تنزيل جدول الوحدات (PDF)</button>
+    </div>
+    <p class="tip">الجدول ده <b>قراءة فقط</b> من الشيت اللي انت رفعته — مفيش أي بلاغات بترد من الوحدات،
+    والوحدات مش بتقدر تحفظ أي حاجة على السيرفر (بتنزّل PDF على جهازها بس).</p>
+  </section>
+</main>
+
+<script src="xlsx.full.min.js"></script>
+<script src="sheet-source.js"></script>
+<script src="common.js"></script>
+<script src="pdf.js"></script>
+<script>
+/* ===== رفع البلاغ اليومي (CSV أو XLSX) ===== */
+let parsedBaseline = null;
+
+/* البارسر (parseCsvText / parseRows / COLS / sheetDateFrom) بقى في sheet-source.js
+   عشان صفحة الوحدة تستخدمه هي كمان في وضع الموقع الثابت. */
+
+async function handleFile(e){
+  const f=e.target.files[0];
+  if(!f) return;
+  try{
+    let pb;
+    if(f.name.toLowerCase().endsWith('.csv')){
+      const text=await f.text();
+      pb=parseDailyCsv(text);
+    } else {
+      const buf=await f.arrayBuffer();
+      // نستخدم نفس دالة sheet-source.js (بتقرا كل الأوراق لو الملف مقسّم)
+      pb = await readSheetBuffer(buf, (f.name.split(".").pop()||"").toLowerCase());
+      pb = pb || {};
+    }
+    // تاريخ «اليوم السابق»: من الشيت لو مكتوب، وإلا (تاريخ البلاغ − 1)
+    const fallback=prevDateStr($("curDate").value||todayLocal());
+    parsedBaseline={ date: pb.sheetDate || fallback,
+                     dateSource: pb.sheetDate ? "sheet" : "fallback",   // التاريخ جوه الشيت ولا مُخترع؟
+                     units: pb.units||{}, unmatched: pb.unmatched||[], error: pb.error||"",
+                     sheetDate: pb.sheetDate||"", fallbackDate: fallback,
+                     firstRow: pb.firstRow||0, lastRow: pb.lastRow||0,
+                     sheetCount: pb.sheetCount||1, usedSheets: pb.usedSheets||[],
+                     skipped: pb.skipped||[], sourceSheet: pb.sourceSheet||"",
+                     perSheet: pb.perSheet||[] };
+    $("baselineDateOut").value = parsedBaseline.date || "—";   // تتحدّث فورًا بعد اختيار الملف
+    showBaselineMsg(parsedBaseline);
+  }catch(err){
+    $("xlsxMsg").className="msg msg-bad";
+    $("xlsxMsg").textContent="✗ تعذر قراءة الملف: "+err.message;
+  }
+  e.target.value="";
+}
+
+/* (numv موحّدة في common.js — بتشيل الفواصل والـ% وتتعامل مع #DIV/0!) */
+
+function showBaselineMsg(b){
+  if(b.error){
+    $("xlsxMsg").className="msg msg-bad";
+    $("xlsxMsg").textContent="✗ "+b.error+". تأكد من شكل البلاغ (بيكون فيه الوحدات والبيانات).";
+    $("extractCard").style.display="none";
+    return;
+  }
+  const n=Object.keys(b.units).length;
+  const unmatched=b.unmatched||[];
+  const missing=UNITS.filter(u=>!b.units[u]);
+  if(unmatched.length||missing.length){
+    $("xlsxMsg").className="msg msg-warn";
+    $("xlsxMsg").textContent=`⚠️ تم استخراج ${n} وحدة، بس فيه ${unmatched.length} اسم في الشيت مش متطابق مع قائمة الوحدات`+
+      (unmatched.length?` (${unmatched.slice(0,3).join('، ')}${unmatched.length>3?'…':''})`:"")+
+      ` — و${missing.length} وحدة من القائمة ملهاش بيانات في الشيت. شوف الجدول تحت.`;
+  }else{
+    $("xlsxMsg").className="msg msg-ok";
+    $("xlsxMsg").textContent=`✅ تم استخراج بيانات ${n} وحدة وكل الأسماء اتطابقت مع قائمة الوحدات (${n}/${UNITS.length})`+
+      (b.date?` — تاريخ الشيت: ${b.date}`:"")+`. اضغط «تحميل بيانات اليوم السابق».`;
+  }
+  if(b.dateSource === "fallback"){
+    $("xlsxMsg").className="msg msg-warn";
+    $("xlsxMsg").textContent = `⚠️ اتقرأ ${n} وحدة، بس تاريخ الشيت مش مقروء — استخدمت تاريخ البلاغ ناقص يوم (${b.date}). `+
+      `اتأكد إن خانة «التاريخ» في الشيت فيها تاريخ فعلاً.`;
+  }
+  showExtractDetails(b);
+}
+
+/* تفاصيل الاستخراج — جدول بكل الوحدات والقيم اللي هتتسكن في صفحة الوحدة */
+function showExtractDetails(b){
+  const card=$("extractCard");
+  card.style.display="";
+  const units=b.units||{};
+  const names=Object.keys(units);
+  const n=names.length;
+  const unmatched=b.unmatched||[];
+
+  // هل البيانات من CSV (فيها rate_t) ولا من إكسيل؟
+  const u0=units[names[0]]||{};
+  const isCsv = u0.rate_t !== undefined;
+
+  let okCount=0, errCount=0;
+  names.forEach(name=>{
+    const u=units[name]; let prob=false;
+    if(isCsv){
+      const rt=parseFloat(u.rate_t), rc=parseFloat(u.rate_c);
+      if(isFinite(rt)&&(rt<9||rt>10)) prob=true;
+      if(isFinite(rc)&&(rc<9||rc>10)) prob=true;
+    }
+    if(!(u.target>0)) prob=true;
+    if(prob) errCount++; else okCount++;
+  });
+
+  $("extractSummary").className = (errCount>0||unmatched.length>0) ? "msg msg-warn" : "msg msg-ok";
+  $("extractSummary").innerHTML =
+    `استخراج <b>${n}</b> وحدة من أصل <b>${UNITS.length}</b> · <span class="cell-ok">${okCount} جاهزة</span>`+
+    (errCount?` · <span class="cell-bad">${errCount} فيها تحذير</span>`:"")+
+    (unmatched.length?` · <b>${unmatched.length} اسم غير متطابق: ${unmatched.join('، ')}</b>`:"")+
+    `<br><span style="font-weight:normal">الأعمدة دي هي بالظبط اللي هتتعبأ في صفحة الوحدة (الرصيد أول اليوم = «المتبقي» في الشيت، والتراكمي = عمود «حتى اليوم»).</span>`;
+
+  let html='<thead><tr>'+
+    '<th>#</th><th>الوحدة</th><th>يوم في الشيت</th><th>صف</th>'+
+    '<th>المستهدف</th><th>الفرق</th><th>الرصيد أول اليوم</th><th>تراكمي المتطعمين</th>'+
+    '<th>مدارس كلي</th><th>مستهدف المدارس</th><th>متطعمين المدارس حتى اليوم</th>'+
+    '<th>حضانات كلي</th><th>مستهدف الحضانات</th><th>متطعمين الحضانات حتى اليوم</th>'+
+    '<th>معدل الزجاجة (اليوم / حتى)</th><th>الحالة</th></tr></thead><tbody>';
+
+  names.forEach((name,i)=>{
+    const u=units[name];
+    let msgs=[], prob=false;
+    if(isCsv){
+      const rt=parseFloat(u.rate_t), rc=parseFloat(u.rate_c);
+      if(isFinite(rt)&&(rt<9||rt>10)){ prob=true; msgs.push(`معدل اليوم ${rt}`); }
+      if(isFinite(rc)&&(rc<9||rc>10)){ prob=true; msgs.push(`معدل التراكمي ${rc}`); }
+    }
+    if(!(u.target>0)){ prob=true; msgs.push("المستهدف صفر"); }
+    const notMatched = !UNITS.includes(name);
+    if(notMatched){ prob=true; msgs.push("الاسم غير مطابق"); }
+    const status = prob ? "✗ "+msgs.join(" / ") : "✓ سليم";
+    const cls = prob ? "cell-bad" : "cell-ok";
+    const cum = (u.e0||0)+(u.e1||0)+(u.e2||0)+(u.n0||0)+(u.n1||0)+(u.n2||0);
+    const shownName = UNITS.includes(name) ? name : `<span class="cell-bad">${name}</span>`;
+    const rawName = (u.__name && u.__name!==name) ? u.__name : "—";
+    html+=`<tr><td>${i+1}</td><td>${shownName}</td><td>${rawName}</td><td>${u.__row||"—"}</td>`+
+      `<td>${fmt(u.target||0)}</td><td>${u.teams||1}</td><td>${fmt(u.open||0)}</td><td>${fmt(cum)}</td>`+
+      `<td>${fmt(u.schTotal||0)}</td><td>${fmt(u.schTarget||0)}</td><td>${fmt(u.schVacc||0)}</td>`+
+      `<td>${fmt(u.nurTotal||0)}</td><td>${fmt(u.nurTarget||0)}</td><td>${fmt(u.nurVacc||0)}</td>`+
+      `<td>${isCsv?(u.rate_t?Number(u.rate_t).toFixed(2):"—")+" / "+(u.rate_c?Number(u.rate_c).toFixed(2):"—"):"—"}</td>`+
+      `<td class="${cls}">${status}</td></tr>`;
+  });
+  html+="</tbody>";
+  $("extractTbl").innerHTML=html;
+  showSheetsCard(b);
+}
+
+/* ===== كارت أوراق الشيت (لو الملف مقسّم على كذا ورقة) ===== */
+function showSheetsCard(b){
+  let card = document.getElementById("sheetsCard");
+  const count = b.sheetCount || 1;
+
+  if(count <= 1){
+    if(card) card.style.display = "none";
+    return;
+  }
+  if(!card){
+    card = document.createElement("section");
+    card.className = "card";
+    card.id = "sheetsCard";
+    card.innerHTML = '<h2><span class="num">1.2</span> أوراق الشيت</h2><div id="sheetsBody"></div>';
+    const anchor = document.getElementById("extractCard");
+    anchor.parentNode.insertBefore(card, anchor.nextSibling);
+  }
+  card.style.display = "";
+
+  const used = (b.usedSheets || []).map(x => x.sheet);
+  const usedMap = {};
+  (b.usedSheets||[]).forEach(x => usedMap[x.sheet] = x.units);
+  const skipped = b.skipped || [];
+
+  const rows = (b.perSheet || []).map(function(ps){
+    const isUsed = usedMap[ps.sheet] !== undefined;
+    const cls = isUsed ? "cell-ok" : "";
+    const note = ps.units === 0 ? "فاضية / مش شيت بلاغ"
+               : (isUsed ? `✅ اتاخد منها ${usedMap[ps.sheet]} وحدة` : "⏭️ اتخطّت (فيها ورقة أحدث)");
+    return `<tr class="${isUsed?'':'miss'}">`+
+      `<td>${ps.order+1}</td><td>${ps.sheet}</td><td>${ps.date||"—"}</td>`+
+      `<td class="num">${fmt(ps.units)}</td><td class="num">${fmt(ps.todaysTotal)}</td>`+
+      `<td class="${cls}">${note}</td></tr>`;
+  }).join("");
+
+  const skippedRows = skipped.map(s=>`<tr class="miss"><td>—</td><td>${s.sheet}</td><td>—</td><td class="num">0</td><td class="num">0</td><td>${s.reason}</td></tr>`).join("");
+
+  $("sheetsBody").innerHTML =
+    `<div class="msg msg-ok" style="margin-bottom:12px">
+       📚 الشيت فيه <b>${count}</b> ورقة — اتقرأوا كلهم، واتاخد لكل وحدة <b>آخر ورقة مسجّلة فيها متطعمين في اليوم</b>.
+       ${used.length ? `الورقة/الأوراق المستخدمة: <b>${used.join(" · ")}</b>.` : ""}
+     </div>
+     <div class="table-wrap">
+       <table>
+         <thead><tr><th>#</th><th>الورقة</th><th>التاريخ</th><th>وحدات</th><th>متطعمين اليوم (إجمالي)</th><th>الحالة</th></tr></thead>
+         <tbody>${rows}${skippedRows}</tbody>
+       </table>
+     </div>
+     <p class="tip">«اتخطّت» = الورقة دي ملهاش تطعيم مسجّل في اليوم (أصفار)، فاتاخدت القيمة من آخر ورقة قبلها فيها أرقام.</p>`;
+}
+
+async function loadBaseline(){
+  if(!parsedBaseline || !parsedBaseline.units){
+    alert("مافيش بيانات مُلحَمة للتحميل. ارفع البلاغ (CSV أو XLSX) أولاً.");
+    return;
+  }
+  const expected = prevDateStr($("curDate").value || todayLocal());
+  if(!parsedBaseline.date) parsedBaseline.date = expected;
+  setBaseline(parsedBaseline);
+  $("baselineDateOut").value = parsedBaseline.date;
+  const n=Object.keys(parsedBaseline.units).length;
+  const unmatched=parsedBaseline.unmatched||[];
+  const missing=UNITS.filter(u=>!parsedBaseline.units[u]);
+  let dateWarn = parsedBaseline.date!==expected
+      ? ` ⚠️ تاريخ الشيت (${parsedBaseline.date}) مش يوم قبل تاريخ البلاغ الحالي (${expected}).`
+      : "";
+  if(parsedBaseline.dateSource === "fallback")
+    dateWarn += ` ⚠️ التاريخ مش مقروء من الشيت — ده تاريخ مُقدَّر. راجع خانة «التاريخ» في ملف الإكسيل.`;
+  if(unmatched.length||missing.length){
+    $("xlsxMsg").className="msg msg-warn";
+    $("xlsxMsg").textContent=`⚠️ اتحفظت بيانات ${n} وحدة بتاريخ ${parsedBaseline.date}.`+
+      (unmatched.length?` أسماء غير متطابقة: ${unmatched.join('، ')}.`:"")+
+      (missing.length?` وحدات بدون بيانات: ${missing.join('، ')}.`:"")+dateWarn;
+  }else{
+    $("xlsxMsg").className="msg msg-ok";
+    $("xlsxMsg").textContent=`✅ تم حفظ بيانات اليوم السابق (${parsedBaseline.date}) لـ ${n} وحدة، وكل الأسماء مطابقة.`+dateWarn;
+  }
+  /* وضع الموقع الثابت (GitHub Pages): مفيش سيرفر — الوحدات بتقرا الملف من الفولدر */
+  if(!SERVER_OK){
+    $("serverMsg").className="msg msg-info";
+    $("serverMsg").innerHTML = `📁 <b>وضع الموقع الثابت (GitHub Pages)</b> — البيانات دي معمول لها معاينة على جهازك بس.<br>`+
+      `<span style="font-weight:normal">الوحدات بتشوف ملف <code>baseline.xlsx</code> اللي جنب <code>index.html</code>، فحدّث الملف وارفع الموقع تاني.</span>`;
+    renderAgg();
+    return;
+  }
+
+  // المشاركة: رفع البيانات للسيرفر عشان كل الوحدات تشوفها
+  const btn=$("loadBaselineBtn"); btn.disabled=true;
+  const oldTxt=btn.textContent; btn.textContent="⏳ جاري الرفع للسيرفر…";
+  const res = await pushBaselineToServer(parsedBaseline, "admin");
+  btn.disabled=false; btn.textContent=oldTxt;
+  if(res.ok){
+    $("serverMsg").className="msg msg-ok";
+    $("serverMsg").textContent=`☁️ اترفع للسيرفر بنجاح — ${res.unitsCount} وحدة بتاريخ ${parsedBaseline.date}. أي وحدة تفتح صفحتها دلوقتي هتلاقي بياناتها (قراءة فقط).`;
+  }else if(res.needKey){
+    $("serverMsg").className="msg msg-bad";
+    $("serverMsg").textContent="✗ السيرفر بيطلب كلمة سر الإدارة. اكتبها فوق واضغط «تحميل بيانات اليوم السابق» تاني.";
+  }else{
+    $("serverMsg").className="msg msg-warn";
+    $("serverMsg").textContent=`⚠️ البيانات اتحفظت على الجهاز بس — الرفع للسيرفر فشل (${res.error||"السيرفر غير متاح"}). الوحدات مش هتشوفها غير لما الرفع ينجح.`;
+  }
+  renderAgg();
+}
+
+/* ===== جدول الوحدات من الشيت المرفوع (قراءة فقط) ===== */
+let aggRows = [];
+function renderAgg(){
+  const date=$("curDate").value || todayLocal();
+  const b=getBaseline();
+  const units=b&&b.units?b.units:{};
+  const names=Object.keys(units);
+  aggRows=[];
+
+  if(!names.length){
+    $("aggMsg").className="msg msg-warn";
+    $("aggMsg").innerHTML='⚠️ <b>مفيش شيت متاح.</b> حط ملف <code>baseline.xlsx</code> جنب <code>index.html</code>، أو '+
+      '<a href="check.html">افتح صفحة الفحص</a> تشوف المشكلة فين بالظبط.';
+    $("tbl").innerHTML="";
+    return;
+  }
+
+  let tT=0,tC=0,target=0,teams=0,open=0;
+  const rows=names.map((u,i)=>{
+    const v=units[u]||{};
+    tT+=v.totT||0; tC+=v.totC||0; target+=v.target||0; teams+=v.teams||0; open+=v.open||0;
+    aggRows.push({n:i+1,u,v});
+    return `<tr><td>${i+1}</td><td>${u}</td>`+
+      `<td class="num">${fmt(v.target||0)}</td><td class="num">${fmt(v.teams||0)}</td>`+
+      `<td class="num">${fmt(v.totT||0)}</td><td class="num">${fmt(v.totC||0)}</td>`+
+      `<td class="num">${fmt(v.open||0)}</td>`+
+      `<td class="num">${fmt(v.schTotal||0)}</td><td class="num">${fmt(v.nurTotal||0)}</td></tr>`;
+  });
+
+  const pct = target>0 ? (tC/target*100).toFixed(1)+"%" : "—";
+  $("aggMsg").className="msg msg-ok";
+  $("aggMsg").textContent=`✅ ${names.length} وحدة — شيت بتاريخ ${b.date||"—"} (الإجمالي: ${fmt(tC)} من ${fmt(target)} = ${pct}).`;
+
+  $("tbl").innerHTML =
+    `<thead><tr><th>#</th><th>الوحدة</th><th>المستهدف</th><th>الفرق</th>`+
+    `<th>متطعم اليوم</th><th>حتى اليوم</th><th>الرصيد أول اليوم</th><th>مدارس</th><th>حضانات</th></tr></thead>`+
+    `<tbody>${rows.join("")}<tr class="tot"><td colspan="2">الإجمالي</td>`+
+    `<td class="num">${fmt(target)}</td><td class="num">${fmt(teams)}</td>`+
+    `<td class="num">${fmt(tT)}</td><td class="num">${fmt(tC)}</td>`+
+    `<td class="num">${fmt(open)}</td><td colspan="2"></td></tr></tbody>`;
+}
+
+function aggPdf(){
+  if(!aggRows.length){ alert("ارفع الشيت الأول من القسم (1)."); return; }
+  const date=$("curDate").value || todayLocal();
+  const W=1240, H=1754, M=40;
+  const cv=document.createElement("canvas"); cv.width=W; cv.height=H;
+  const ctx=cv.getContext("2d");
+  let page=1, y=0;
+
+  const headers=["#","الوحدة","المستهدف","الفرق","متطعم اليوم","حتى اليوم","الرصيد أول اليوم","مدارس","حضانات"];
+  const ratios=[0.06,0.26,0.11,0.08,0.12,0.12,0.13,0.06,0.06];
+  const rowH=40;
+
+  function startPage(){
+    ctx.fillStyle="#fff"; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle="#1a56b0"; ctx.fillRect(0,0,W,92);
+    ctx.fillStyle="#fff"; ctx.textAlign="right";
+    ctx.font="bold 30px Tahoma, Arial, sans-serif";
+    ctx.fillText("إدارة قويسنا الصحية — جدول الوحدات (من شيت اليوم السابق)", W-30, 46);
+    ctx.font="18px Tahoma, Arial, sans-serif";
+    ctx.fillText(`تاريخ البلاغ: ${date}   ·   صفحة ${page}`, W-30, 74);
+    y=130;
+    ctx.fillStyle="#dce5f2"; ctx.fillRect(M,y,W-M*2,rowH);
+    let rR=W-M;
+    headers.forEach((h,i)=>{ const cw=(W-M*2)*ratios[i]; const cx=rR-cw;
+      ctx.strokeStyle="#b8c7e0"; ctx.strokeRect(cx,y,cw,rowH);
+      ctx.fillStyle="#112"; ctx.textAlign="center";
+      ctx.font="bold 15px Tahoma, Arial, sans-serif"; ctx.fillText(h, cx+cw/2, y+27); rR-=cw; });
+    y+=rowH;
+  }
+  function flush(){
+    pages.push({dataUrl:cv.toDataURL("image/jpeg",0.94), w:W, h:H});
+  }
+
+  const pages=[];
+  startPage();
+  aggRows.forEach(r=>{
+    if(y+rowH > H-90){ flush(); page++; startPage(); }
+    const v=r.v;
+    const vals=[r.n, r.u, fmt(v.target||0), fmt(v.teams||0), fmt(v.totT||0), fmt(v.totC||0), fmt(v.open||0), fmt(v.schTotal||0), fmt(v.nurTotal||0)];
+    ctx.fillStyle = (r.n%2) ? "rgba(245,248,253,1)" : "#fff";
+    ctx.fillRect(M,y,W-M*2,rowH);
+    let cR=W-M;
+    vals.forEach((val,ci)=>{
+      const cw=(W-M*2)*ratios[ci]; const cx=cR-cw;
+      ctx.strokeStyle="#cbd4e2"; ctx.strokeRect(cx,y,cw,rowH);
+      ctx.fillStyle="#222";
+      ctx.font=(ci===0)?"bold 15px Tahoma, Arial, sans-serif":"15px Tahoma, Arial, sans-serif";
+      ctx.textAlign=(ci===1)?"right":"center";
+      ctx.fillText(String(val), (ci===1)?cR-12:cx+cw/2, y+27);
+      cR-=cw;
+    });
+    y+=rowH;
+  });
+  /* صف الإجمالي */
+  if(y+rowH > H-90){ flush(); page++; startPage(); }
+  const T={target:0,teams:0,totT:0,totC:0,open:0,schTotal:0,nurTotal:0};
+  aggRows.forEach(r=>{ const v=r.v;
+    T.target+=v.target||0; T.teams+=v.teams||0; T.totT+=v.totT||0;
+    T.totC+=v.totC||0; T.open+=v.open||0; T.schTotal+=v.schTotal||0; T.nurTotal+=v.nurTotal||0; });
+  const totVals=["", "الإجمالي", fmt(T.target), fmt(T.teams), fmt(T.totT), fmt(T.totC), fmt(T.open), fmt(T.schTotal), fmt(T.nurTotal)];
+  ctx.fillStyle="#dce5f2"; ctx.fillRect(M,y,W-M*2,rowH);
+  let tR=W-M;
+  totVals.forEach((val,ci)=>{
+    const cw=(W-M*2)*ratios[ci]; const cx=tR-cw;
+    ctx.strokeStyle="#9fb3d1"; ctx.strokeRect(cx,y,cw,rowH);
+    ctx.fillStyle="#0b2b57";
+    ctx.font="bold 15px Tahoma, Arial, sans-serif";
+    ctx.textAlign=(ci===1)?"right":"center";
+    ctx.fillText(String(val), (ci===1)?tR-12:cx+cw/2, y+27);
+    tR-=cw;
+  });
+  y+=rowH;
+
+  flush();
+  const blob=jpegsToPdfBlob(pages, 595.28, 841.89);
+  triggerDownload(blob, `جدول-الوحدات-${date}.pdf`);
+}
+
+/* الأحداث */
+$("xlsxFile").addEventListener("change", handleFile);
+$("loadBaselineBtn").addEventListener("click", loadBaseline);
+$("curDate").addEventListener("change", renderAgg);
+$("aggPdfBtn").addEventListener("click", aggPdf);
+$("curDate").value=todayLocal();
+$("baselineDateOut").value = baselineDate() || "—";
+
+/* كلمة السر المحفوظة على الجهاز */
+$("adminKeyInput").value = adminKey();
+$("adminKeyInput").addEventListener("change", ()=> setAdminKey($("adminKeyInput").value.trim()));
+
+/* فحص السيرفر + تحميل الشيت (من السيرفر أو من ملف الفولدر) + تحديث الجدول */
+let SERVER_OK = false;
+(async function boot(){
+  const info = await serverStatus(true);
+  SERVER_OK = !!info.reachable;
+  const res = await loadBaselineFromServer();
+
+  if(res.source==="server"){
+    $("serverMsg").className="msg msg-ok";
+    $("serverMsg").textContent = `☁️ متصل بالسيرفر (${info.name||"محلي"}) — القراءة فقط للوحدات`+
+      (info.adminRequired ? "، والرفع محمي بكلمة سر." : "، والرفع مفتوح (يفضَّل تحمي بكلمة سر).");
+
+  } else if(res.source==="folder"){
+    // وضع جيت هاب: الشيت اتقرأ من الملف اللي في الفولدر
+    parsedBaseline = {
+      date: res.baseline.date, units: res.baseline.units,
+      unmatched: res.unmatched||[], error:"",
+      sheetDate: res.baseline.date, file: res.file,
+      firstRow:0, lastRow:0,
+      sheetCount: res.baseline.sheetCount || 1,
+      usedSheets: res.baseline.usedSheets || [],
+      skipped: res.baseline.skipped || [],
+      perSheet: res.baseline.perSheet || []
+    };
+    setBaseline(parsedBaseline);
+    $("serverMsg").className="msg msg-ok";
+    $("serverMsg").innerHTML = `📁 <b>وضع الموقع الثابت (GitHub Pages)</b> — الشيت متحمّل من الملف <code>${res.file}</code>`+
+      (res.baseline.date?` بتاريخ <b>${res.baseline.date}</b>`:"")+` · <b>${Object.keys(res.baseline.units).length} وحدة</b>.<br>`+
+      `<span style="font-weight:normal">مفيش رفع مطلوب — كل وحدة تفتح صفحتها بتقرا نفس الملف ده.</span>`;
+    $("xlsxMsg").className="msg msg-ok";
+    $("xlsxMsg").textContent=`✅ الشيت متقرأ من «${res.file}» — ${Object.keys(res.baseline.units).length} وحدة`+
+      (res.baseline.date?` بتاريخ ${res.baseline.date}`:"")+`.`;
+    showExtractDetails(parsedBaseline);
+
+  } else if(res.source==="server-empty"){
+    $("serverMsg").className="msg msg-warn";
+    $("serverMsg").textContent="⚠️ السيرفر شغال بس مفيش شيت مرفوع عليه، ومفيش ملف الشيت في الفولدر. حط baseline.xlsx جنب index.html أو ارفع الشيت من هنا.";
+
+  } else if(res.source === "open-local" || res.source === "blocked"){
+    $("serverMsg").className="msg msg-bad";
+    $("serverMsg").innerHTML =
+      `🚫 <b>انت بتفتح الموقع من جهازك مباشرة (file://)</b><br>`+
+      `<span style="font-weight:normal">المتصفح <b>بيمنع</b> أي صفحة تفتحها بالدبل كليك إنها تقرا ملفات جنبها — `+
+      `ده قيد أمان في كل المتصفحات، مش مشكلة في الملف.<br>`+
+      `الحل: ارفع الفولدر على <b>GitHub Pages</b> وافتح الموقع من الرابط، أو شغّل السيرفر `+
+      `(<code>node server.js</code>) وافتح <code>localhost:3000</code>.</span><br>`+
+      `<span style="font-weight:normal">وللتأكد إن الملف نفسه سليم: اختاره تحت في قسم (1) — هيتقرا على جهازك بس.</span>`;
+    $("xlsxMsg").className="msg msg-warn";
+    $("xlsxMsg").textContent="⚠️ الوضع الحالي: ملف محلي. اختار الشيت من هنا لمعاينته على جهازك فقط.";
+  } else {
+    $("serverMsg").className="msg msg-warn";
+    $("serverMsg").innerHTML = `⚠️ <b>مفيش شيت متاح</b> — لا سيرفر شغال، ولا ملف <code>baseline.xlsx</code> جنب <code>index.html</code>.<br>`+
+      `<span style="font-weight:normal">حط ملف الشيت باسم <code>baseline.xlsx</code> في نفس مجلد الموقع وارفع تاني، `+
+      `أو <a href="check.html">افتح صفحة الفحص</a>.</span>`;
+    $("xlsxMsg").className="msg msg-warn";
+    $("xlsxMsg").textContent="⚠️ مفيش ملف شيت في الفولدر. اختار ملف من هنا لمعاينته على جهازك بس.";
+  }
+
+  $("baselineDateOut").value = baselineDate() || "—";
+  renderAgg();
+})();
+</script>
+</body>
+</html>

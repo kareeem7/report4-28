@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>البلاغ اليومي — الوحدة</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <span class="logo">🏥</span>
+  <div>
+    <h1>البلاغ اليومي للحملة القومية للتطعيم</h1>
+    <p>وزارة الصحة والسكان · الإدارة الصحية / قويسنا · بطعم MR</p>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ① بيانات الوحدة -->
+  <section class="card">
+    <h2><span class="num">1</span> بيانات الوحدة</h2>
+    <div class="grid g2">
+      <label>اسم الوحدة
+        <select id="unit"></select>
+      </label>
+      <label>التاريخ
+        <input type="date" id="date">
+      </label>
+      <label>اليوم (رقم اليوم في الحملة)
+        <input type="number" id="day" min="1" value="1">
+      </label>
+      <label>المستهلِف — يُكتب مرة واحدة
+        <input type="number" id="target" min="0" placeholder="0">
+      </label>
+      <label>عدد الفرق — يُكتب مرة واحدة
+        <input type="number" id="teams" min="0" placeholder="1">
+      </label>
+      <label>عدد المدارس — من شيت اليوم السابق
+        <input type="number" id="schTotal" min="0" value="0">
+      </label>
+      <label>مستهدف المدارس — من شيت اليوم السابق
+        <input type="number" id="schTarget" min="0" value="0">
+      </label>
+      <label>عدد الحضانات — من شيت اليوم السابق
+        <input type="number" id="nurTotal" min="0" value="0">
+      </label>
+      <label>مستهدف الحضانات — من شيت اليوم السابق
+        <input type="number" id="nurTarget" min="0" value="0">
+      </label>
+      <label>الرصيد أول اليوم (زجاجات) — تلقائي من شيت الأمس
+        <input type="number" id="open" min="0" value="0">
+      </label>
+    </div>
+    <div id="baseMsg" class="msg msg-info"></div>
+  </section>
+
+  <!-- ② بيانات اليوم (المطلوب فقط) -->
+  <section class="card">
+    <h2><span class="num">2</span> بيانات اليوم — تُدخل هنا فقط</h2>
+
+    <div class="sub-card">
+      <h3>أولاً: المتطعمين المصريين (اليوم)</h3>
+      <div class="grid g3">
+        <label>9 شهور – أقل من عام <input type="number" id="e0t" min="0" placeholder="0"></label>
+        <label>من عام – أقل من 5 سنوات <input type="number" id="e1t" min="0" placeholder="0"></label>
+        <label>من 5 – 10 سنة <input type="number" id="e2t" min="0" placeholder="0"></label>
+      </div>
+    </div>
+
+    <div class="sub-card">
+      <h3>ثانياً: المتطعمين غير المصريين (اليوم)</h3>
+      <div class="grid g3">
+        <label>9 شهور – أقل من عام <input type="number" id="n0t" min="0" placeholder="0"></label>
+        <label>من عام – أقل من 5 سنوات <input type="number" id="n1t" min="0" placeholder="0"></label>
+        <label>من 5 – 10 سنة <input type="number" id="n2t" min="0" placeholder="0"></label>
+      </div>
+    </div>
+
+    <div class="sub-card">
+      <h3>ثالثاً: المتغيبون والآثار الجانبية (اليوم)</h3>
+      <div class="grid g3">
+        <label>المتغيبون عن التطعيم <input type="number" id="abst" min="0" value="0"></label>
+        <label>المطعمون من المتغيبين <input type="number" id="absvt" min="0" value="0"></label>
+        <label>الآثار الجانبية <input type="number" id="sidet" min="0" value="0"></label>
+      </div>
+    </div>
+
+    <div class="sub-card">
+      <h3>رابعاً: حركة الطعوم (اليوم)</h3>
+      <div class="grid g2">
+        <label>عدد الزجاجات الواردة اليوم — لو فيه <input type="number" id="recv" min="0" value="0"></label>
+        <label>عدد الزجاجات المستهلكة اليوم <input type="number" id="used" min="0" value="0"></label>
+      </div>
+    </div>
+
+    <div class="sub-card">
+      <h3>خامساً: المدارس والحضانات</h3>
+      <div class="grid g2">
+        <label>عدد المدارس التي تم زيارتها اليوم <input type="number" id="schVist" min="0" placeholder="0"></label>
+        <label>عدد الحضانات التي تم زيارتها اليوم <input type="number" id="nurVist" min="0" placeholder="0"></label>
+        <label>عدد المتطعمين في المدارس اليوم <input type="number" id="schVaccT" min="0" placeholder="0"></label>
+        <label>عدد المتطعمين في الحضانات اليوم <input type="number" id="nurVaccT" min="0" placeholder="0"></label>
+      </div>
+    </div>
+  </section>
+
+  <!-- ③ النتيجة التلقائية -->
+  <section class="card">
+    <h2><span class="num">3</span> النتيجة التلقائية (لا تدخل شيء هنا)</h2>
+    <div class="auto-row">
+      <div class="auto"><span>إجمالي المتطعمين اليوم</span><b id="outTotT">0</b></div>
+      <div class="auto"><span>إجمالي حتى اليوم</span><b id="outTotC">0</b></div>
+      <div class="auto"><span>نسبة التغطية</span><b id="outPct">—</b></div>
+    </div>
+    <div class="auto-row">
+      <div class="auto" id="rateBox"><span>معدل الزجاجة اليوم</span><b id="outRate">—</b></div>
+      <div class="auto"><span>الزجاجات المتبقية</span><b id="outRem">0</b></div>
+    </div>
+    <div class="auto-row">
+      <div class="auto"><span>متطعمين المدارس حتى اليوم</span><b id="outSchVacc">0</b></div>
+      <div class="auto"><span>متطعمين الحضانات حتى اليوم</span><b id="outNurVacc">0</b></div>
+    </div>
+    <p class="tip">كل زجاجة = 10 جرعات. معدل الزجاجة لازم يكون بين <b>9 و 10</b>. أعلى من 10 = العدد أكبر من الاستهلاك. أقل من 9 = فيه هدر.</p>
+  </section>
+
+  <!-- ④ نتيجة الفحص -->
+  <section class="card">
+    <h2><span class="num">4</span> نتيجة الفحص</h2>
+    <div id="resultMsg" class="msg msg-info">اختر الوحدة وأدخل بيانات اليوم…</div>
+    <ul id="errs" class="errs" hidden></ul>
+    <div class="btns">
+      <button id="saveBtn" class="btn-primary">📄 تنزيل البلاغ الكامل (PDF)</button>
+    </div>
+    <p class="tip">الضغط على <b>تنزيل</b> بيجهّز البلاغ الكامل PDF وينزّله على جهازك. <b>مفيش أي بيانات بتترفع للسيرفر</b> — النسخة اللي بتدخلها بتفضل على جهازك بس، والإدارة هي اللي بترفع الشيت الرسمي.</p>
+  </section>
+</main>
+
+<script src="sheet-source.js"></script>
+<script src="common.js"></script>
+<script src="template-bg.js"></script>
+<script src="pdf.js"></script>
+<script>
+/* ===== صفحة الوحدة ===== */
+let CUM = { e0:0,e1:0,e2:0,n0:0,n1:0,n2:0, abs:0,absv:0,side:0, schV:0,schC:0, nurV:0,nurC:0, recvC:0, usedC:0 }; // تراكمي حتى الأمس
+let BASE = { target:0, teams:1, schTotal:0, schTarget:0, nurTotal:0, nurTarget:0, open:0 };
+
+function initUnits(){
+  const sel=$("unit");
+  sel.innerHTML = '<option value="">— اختار الوحدة —</option>' + UNITS.map(u=>`<option value="${u}">${u}</option>`).join("");
+  sel.addEventListener("change", loadContext);
+}
+
+function loadContext(){
+  const unit=$("unit").value;
+  if(!unit){ $("baseMsg").className="msg msg-info"; $("baseMsg").textContent="اختر اسم الوحدة عشان نحط بيانات الأساس تلقائياً."; return; }
+
+  // 1) من شيت اليوم السابق (الإدارة رفعته) — البحث بيتجاهل التطويل/ى/ة/المسافات
+  const b = baselineUnit(unit);
+  // 2) من ثوابت الوحدة المحفوظة بالجهاز
+  const ub = getUnitBase(unit);
+
+  // كل خانة بتاخد قيمتها من الشيت، ولو مش موجودة فيها ترجع للثوابت المحفوظة، وإلا صفر
+  const pick = (k, def) => {
+    const v1=numv(b && b[k]); if(isFinite(v1)) return v1;
+    const v2=numv(ub && ub[k]); if(isFinite(v2)) return v2;
+    return def;
+  };
+
+  BASE.target    = pick("target",0);
+  BASE.teams     = pick("teams",1) || 1;
+  BASE.schTotal  = pick("schTotal",0);
+  BASE.schTarget = pick("schTarget",0);
+  BASE.nurTotal  = pick("nurTotal",0);
+  BASE.nurTarget = pick("nurTarget",0);
+  BASE.open      = pick("open",0);
+
+  // التراكمي من شيت الأمس (أعمدة «حتى اليوم»)
+  CUM.e0=pick("e0",0); CUM.e1=pick("e1",0); CUM.e2=pick("e2",0);
+  CUM.n0=pick("n0",0); CUM.n1=pick("n1",0); CUM.n2=pick("n2",0);
+  CUM.abs=pick("abs",0); CUM.absv=pick("absv",0); CUM.side=pick("side",0);
+  CUM.schV=pick("schVisited",0); CUM.schC=pick("schVacc",0);
+  CUM.recvC=pick("recvC",0); CUM.usedC=pick("usedC",0);   // زجاجات تراكمية (لصفحة التشغيلات)
+  CUM.nurV=pick("nurVisited",0); CUM.nurC=pick("nurVacc",0);
+
+  // كتابة الأساسيات في الشاش
+  $("target").value = BASE.target; $("teams").value = BASE.teams;
+  $("schTotal").value = BASE.schTotal; $("schTarget").value = BASE.schTarget;
+  $("nurTotal").value = BASE.nurTotal; $("nurTarget").value = BASE.nurTarget;
+  $("open").value = BASE.open;
+
+  // تقنين الحقول الأساسية (تلقائي لو فيه شيت)
+  const fromSheet = !!b;
+  $("target").readOnly = fromSheet; $("teams").readOnly = fromSheet;
+  $("schTotal").readOnly = fromSheet; $("schTarget").readOnly = fromSheet;
+  $("nurTotal").readOnly = fromSheet; $("nurTarget").readOnly = fromSheet;
+  $("open").readOnly = fromSheet;
+
+  const cum = CUM.e0+CUM.e1+CUM.e2+CUM.n0+CUM.n1+CUM.n2;
+  if(b){
+    const sheetName = (b.__name && normUnitName(b.__name)!==normUnitName(unit)) ? ` — الاسم في الشيت: «${b.__name}»` : "";
+    const rowInfo = b.__row ? ` · صف ${b.__row}` : "";
+    $("baseMsg").className="msg msg-ok";
+    $("baseMsg").innerHTML =
+      `✅ تم تحميل بيانات الأساس والتراكمي من شيت اليوم السابق (${baselineDate()})${rowInfo}${sheetName}.<br>`+
+      `المستهدف <b>${fmt(BASE.target)}</b> · الفرق <b>${BASE.teams}</b> · الرصيد أول اليوم <b>${fmt(BASE.open)}</b> زجاجة · `+
+      `تراكمي المتطعمين <b>${fmt(cum)}</b> · مدارس <b>${fmt(BASE.schTotal)}</b>/<b>${fmt(BASE.schTarget)}</b> · `+
+      `حضانات <b>${fmt(BASE.nurTotal)}</b>/<b>${fmt(BASE.nurTarget)}</b>.`;
+  } else if(ub && (numv(ub.target)>0 || numv(ub.schTotal)>0)){
+    $("baseMsg").className="msg msg-warn";
+    $("baseMsg").textContent = `⚠️ مفيش شيت لليوم السابق للوحدة دي، فبنستخدم البيانات الأساسية المحفوظة على الجهاز. التراكمي هيبدأ من صفر — راجع الإدارة لو التراكمي مطلوب.`;
+  } else {
+    $("baseMsg").className="msg msg-warn";
+    $("baseMsg").textContent = `⚠️ مفيش شيت اليوم السابق لهذه الوحدة. مطلوب منك تكمل البيانات الأساسية (المستهلِف، الفرق، المدارس، الحضانات) مرة واحدة، وبكده هتتحفظ ليك.`;
+  }
+  calc();
+}
+
+/* الحسابات التلقائية */
+function calc(){
+  // نقرأ الأساسيات من الحقول مباشرةً (تحديث فوري لو عدّل المستخدم)
+  BASE.target=num("target"); BASE.teams=num("teams")||1;
+  BASE.schTotal=num("schTotal"); BASE.schTarget=num("schTarget");
+  BASE.nurTotal=num("nurTotal"); BASE.nurTarget=num("nurTarget");
+  BASE.open=num("open");
+
+  const e0=num("e0t"),e1=num("e1t"),e2=num("e2t"),n0=num("n0t"),n1=num("n1t"),n2=num("n2t");
+  const totT = e0+e1+e2+n0+n1+n2;
+  $("outTotT").textContent = fmt(totT);
+
+  // التراكمي حتى اليوم
+  const totC = CUM.e0+CUM.e1+CUM.e2+CUM.n0+CUM.n1+CUM.n2 + totT;
+  $("outTotC").textContent = fmt(totC);
+  $("outPct").textContent = BASE.target>0 ? (totC/BASE.target*100).toFixed(1)+"%" : "—";
+
+  // الزجاجات
+  const open=BASE.open, recv=num("recv"), used=num("used");
+  const rem = open+recv-used;
+  $("outRem").textContent = rem>=0 ? fmt(rem) : "⚠️";
+  $("outRem").parentElement.className = rem<0 ? "auto bad" : "auto";
+
+  // معدل الزجاجة
+  const rateBox=$("rateBox");
+  if(used>0){
+    const rate=totT/used;
+    $("outRate").textContent = rate.toFixed(2);
+    rateBox.className = (rate>=9 && rate<=10) ? "auto ok" : "auto bad";
+  } else {
+    $("outRate").textContent = totT>0 ? "∞" : "—";
+    rateBox.className = totT>0 ? "auto bad" : "auto";
+  }
+
+  calc2();
+  validate();
+}
+function calc2(){
+  // متطعمين المدارس والحضانات (حتى اليوم)
+  const schVaccT = num("schVaccT")||0;
+  const nurVaccT = num("nurVaccT")||0;
+  const schVaccC = CUM.schC + schVaccT;
+  const nurVaccC = CUM.nurC + nurVaccT;
+  $("outSchVacc").textContent = fmt(schVaccC);
+  $("outNurVacc").textContent = fmt(nurVaccC);
+}
+
+/* الفحص */
+function validate(){
+  const errs=[];
+  const unit=$("unit").value;
+  if(!unit) errs.push("اختر اسم الوحدة");
+  if(!$("date").value) errs.push("حدد التاريخ");
+
+  const e0=num("e0t"),e1=num("e1t"),e2=num("e2t"),n0=num("n0t"),n1=num("n1t"),n2=num("n2t");
+  const totT=e0+e1+e2+n0+n1+n2;
+  const used=num("used"), recv=num("recv"), open=BASE.open;
+
+  // المستهلِف والفرق
+  if(BASE.target<=0) errs.push("المستهلِف (العدد المستهدف للوحدة) لازم يكون أكبر من صفر — كمله في القسم الأول.");
+  if(BASE.schTotal<=0) errs.push("عدد المدارس الكلي لازم يكون معروف — كمله في بيانات الأساس.");
+  if(BASE.nurTotal<=0) errs.push("عدد الحضانات الكلي لازم يكون معروف — كمله في بيانات الأساس.");
+
+  // معدل الزجاجة
+  if(used===0 && totT>0) errs.push(`عدد المتطعمين اليوم (${totT}) أكبر من صفر، لكن عدد الزجاجات المستهلكة = 0. لازم تستخدم على الأقل زجاجة واحدة.`);
+  else if(used>0){
+    const rate=totT/used;
+    if(rate>10) errs.push(`معدل الزجاجة اليوم = ${rate.toFixed(2)} — أعلى من 10. عدد الزجاجات المستهلكة أقل من المطلوب (كل زجاجة = 10 جرعات).`);
+    else if(rate<9) errs.push(`معدل الزجاجة اليوم = ${rate.toFixed(2)} — أقل من 9. فيه هدر في اللقاحات.`);
+  }
+
+  // الاستهلاك والرصيد
+  if(used>open+recv) errs.push(`الزجاجات المستهلكة (${used}) أكبر من المتاح (الرصيد أول اليوم ${open} + الوارد ${recv}).`);
+  if(open+recv-used < 0) errs.push("الزجاجات المتبقية سالب — تفقد الأرقام.");
+
+  // المتغيرين
+  if(num("absvt")>num("abst")) errs.push("المطعمون من المتغيبين (اليوم) أكبر من المتغيبين (اليوم).");
+
+  // المدارس والحضانات
+  if(num("schVist")>BASE.schTotal-CUM.schV) errs.push("عدد المدارس اللي زارها اليوم أكبر من المدارس المتبقية اللي مازاله مش مزور.");
+  if(num("nurVist")>BASE.nurTotal-CUM.nurV) errs.push("عدد الحضانات اللي زارها اليوم أكبر من الحضانات المتبقية.");
+
+  renderErrs(errs);
+  return errs;
+}
+function renderErrs(errs){
+  const box=$("resultMsg"), list=$("errs");
+  if(errs.length===0){
+    box.className="msg msg-ok"; box.textContent="✓ كل البيانات صحيحة ومتسقة — جاهز للحفظ وتنزيل الـ PDF.";
+    list.hidden=true; $("saveBtn").disabled=false;
+  } else {
+    box.className="msg msg-bad"; box.textContent=`✗ فيه ${errs.length} مشكلة لازم تتصح قبل الحفظ:`;
+    list.hidden=false; list.innerHTML=errs.map(e=>`<li>${e}</li>`).join("");
+    $("saveBtn").disabled=true;
+  }
+}
+
+/* الحفظ وتنزيل الـ PDF */
+async function save(){
+  const errs=validate();
+  if(errs.length){ return; }
+  const unit=$("unit").value, date=$("date").value, day=num("day");
+
+  const e0=num("e0t"),e1=num("e1t"),e2=num("e2t"),n0=num("n0t"),n1=num("n1t"),n2=num("n2t");
+  const totT=e0+e1+e2+n0+n1+n2;
+  const totC=CUM.e0+CUM.e1+CUM.e2+CUM.n0+CUM.n1+CUM.n2 + totT;
+  const recv=num("recv"), used=num("used"), open=BASE.open;
+  const remaining=open+recv-used;
+  const rate=used>0?(totT/used).toFixed(2):"";
+
+  const d={
+    unit, date, day,
+    target:BASE.target, teams:BASE.teams, open,
+    e0t:e0,e1t:e1,e2t:e2,n0t:n0,n1t:n1,n2t:n2,
+    e0C:CUM.e0+e0,e1C:CUM.e1+e1,e2C:CUM.e2+e2,
+    n0C:CUM.n0+n0,n1C:CUM.n1+n1,n2C:CUM.n2+n2,
+    totT, totC,
+    abst:num("abst"), absvt:num("absvt"), sidet:num("sidet"),
+    absC:CUM.abs+num("abst"), absvC:CUM.absv+num("absvt"), sideC:CUM.side+num("sidet"),
+    recv, used, remaining, rate,
+    schTotal:BASE.schTotal, schTarget:BASE.schTarget,
+    schVist:num("schVist"), schVisited:CUM.schV+num("schVist"),
+    schVaccT:num("schVaccT")||0, schVacc:CUM.schC+num("schVaccT")||0,
+    nurTotal:BASE.nurTotal, nurTarget:BASE.nurTarget,
+    nurVist:num("nurVist"), nurVisited:CUM.nurV+num("nurVist"),
+    nurVaccT:num("nurVaccT")||0, nurVacc:CUM.nurC+num("nurVaccT")||0,
+    schPct:BASE.schTarget>0?((CUM.schC+num("schVaccT")||0)/BASE.schTarget*100).toFixed(1)+"%":"",
+    nurPct:BASE.nurTarget>0?((CUM.nurC+num("nurVaccT")||0)/BASE.nurTarget*100).toFixed(1)+"%":"",
+    recvC: CUM.recvC+recv, usedC: CUM.usedC+used,
+    rateUntil: (CUM.usedC+used)>0 ? ((totC)/(CUM.usedC+used)).toFixed(2) : ""
+  };
+
+  // حفظ البيانات للإدارة
+  const payload = { unit, date, values:{ target:BASE.target, teams:BASE.teams, totT, totC, used, recv, remaining,
+      schVist:num("schVist"), nurVist:num("nurVist"),
+      schVaccT:num("schVaccT")||0, nurVaccT:num("nurVaccT")||0,
+      schVisited:CUM.schV+num("schVist"), nurVisited:CUM.nurV+num("nurVist"),
+      schVacc:CUM.schC+num("schVaccT")||0, nurVacc:CUM.nurC+num("nurVaccT")||0, open,
+      day, e0t,e1t,e2t,n0t,n1t,n2t, abst:num("abst"), absvt:num("absvt"), sidet:num("sidet") } };
+  saveUnitData(unit, date, payload);          // نسخة على جهاز الوحدة بس — مفيش رفع للسيرفر
+
+  // توليد PDF على النموذج الرسمي
+  $("saveBtn").disabled=true;
+  $("resultMsg").className="msg msg-info";
+  $("resultMsg").textContent="⏳ جاري تجهيز البلاغ على النموذج الرسمي…";
+  try{
+    const pages=await renderUnitReport(unit, date, day, d);
+    const blob=jpegsToPdfBlob(pages, 841.89, 595.28);   // A4 أفقي
+    triggerDownload(blob, `بلاغ-${unit.replace(/\s+/g,'-')}-${date}.pdf`);
+    $("resultMsg").className="msg msg-ok";
+    $("resultMsg").innerHTML = `✅ البلاغ (${unit}) جاهز — نزّل الـ PDF على النموذج الرسمي (3 صفحات).<br>`+
+      `<span style="font-weight:normal">🔒 البيانات دي على جهازك بس ومش بتترفع للسيرفر — الـ PDF هو اللي تسلّمه للإدارة.</span>`;
+  }catch(err){
+    $("resultMsg").className="msg msg-bad";
+    $("resultMsg").textContent="✗ حصل خطأ أثناء تجهيز الـ PDF: "+err.message+" — جرّب تحديث الصفحة.";
+  }finally{
+    $("saveBtn").disabled=false;
+  }
+}
+
+/* الأحداث */
+function saveBasic(){
+  const unit=$("unit").value; if(!unit) return;
+  if(baselineUnit(unit)) return; // مش هنعدّل بيانات الشيت
+  setUnitBase(unit, {
+    target:num("target"), teams:num("teams"),
+    schTotal:num("schTotal"), schTarget:num("schTarget"),
+    nurTotal:num("nurTotal"), nurTarget:num("nurTarget"),
+    open:num("open")
+  });
+}
+/* شريط صغير تحت الهيدر يوضح مصدر البيانات */
+function showSyncBanner(source, file){
+  let el = document.getElementById("syncBanner");
+  if(!el){
+    el = document.createElement("div");
+    el.id = "syncBanner";
+    el.style.cssText = "font-size:12.5px;padding:8px 12px;text-align:center;font-weight:bold;direction:rtl";
+    document.body.insertBefore(el, document.body.firstChild.nextSibling);
+  }
+  const age = baselineAgeDays();
+  const stale = (age!==null && age>2) ? ` — ⚠️ بتاريخ ${baselineDate()} (قديم)` : "";
+  const map = {
+    server: ["#e6f4ea","#1e8e3e","☁️ متصل بالسيرفر — بياناتك الأساسية والتراكمي محدّثة من شيت الإدارة (قراءة فقط)"],
+    folder: ["#e6f4ea","#1e8e3e","📁 الشيت متحمّل من ملف الموقع"+stale+" — بياناتك الأساسية والتراكمي محدّثة (قراءة فقط)"],
+    local:  ["#fef7e0","#b06000","📴 بتشتغل على نسخة محفوظة على الجهاز ده بس — مش من شيت الإدارة"],
+    "server-empty": ["#fef7e0","#b06000","⚠️ متصل بالسيرفر بس لسه مفيش شيت مرفوع — كلّم الإدارة"],
+    empty:  ["#f8d7da","#a12622","⚠️ مفيش شيت على الموقع — الإدارة لازم ترفع ملف baseline.xlsx جنب index.html (اضغط هنا للفحص)"],
+    blocked:["#f8d7da","#a12622","⚠️ المتصفح بيمنع قراءة الملفات — لازم تفتح الموقع من الرابط (مش بالدبل كليك)"],
+    "open-local":["#fff3cd","#7a4f00","📂 الصفحة مفتوحة من جهازك مباشرة (file://) — المتصفح بيمنعها تقرا الملف اللي جنبها. اختار الشيت تحت ↓"]
+  };
+  const [bg,fg,txt] = map[source] || map.local;
+  el.style.background = bg; el.style.color = fg; el.textContent = txt;
+  el.title = file ? ("الملف: " + file) : "";
+  if(source === "empty" || source === "blocked"){
+    el.style.cursor = "pointer";
+    el.onclick = function(){ location.href = "check.html"; };
+  } else { el.style.cursor = "default"; el.onclick = null; }
+
+  if(source === "open-local" || source === "blocked") showLocalPicker();
+}
+
+/* منطقة اختيار الشيت من الجهاز — بتظهر بس لما الموقع ميقدرش يقرا الملفات بنفسه */
+function showLocalPicker(){
+  if(document.getElementById("localPicker")) return;
+  const box = document.createElement("div");
+  box.id = "localPicker";
+  box.style.cssText = "max-width:900px;margin:14px auto;padding:14px 18px;border:2px dashed #c9a227;"+
+    "border-radius:12px;background:#fffdf3;direction:rtl;font-size:14px;line-height:1.9";
+  box.innerHTML =
+    '<b>📂 حل سريع:</b> اختار ملف الشيت من جهازك هنا — الصفحة هتقراه مباشرة.<br>'+
+    '<span style="font-size:13px;color:#7a4f00">ده على <b>الجهاز ده بس</b> (مش بيترفع ولا حد تاني يشوفه). '+
+    'التوزيع للوحدات لازم يكون من رابط على النت — جيت هاب أو سيرفر.</span><br>'+
+    '<input type="file" id="localPickerFile" accept=".xlsx,.xls,.xlsm,.csv" style="margin-top:8px">'+
+    '<div id="localPickerMsg" style="margin-top:8px;font-weight:bold"></div>';
+  const anchor = document.getElementById("syncBanner");
+  anchor.parentNode.insertBefore(box, anchor.nextSibling);
+
+  document.getElementById("localPickerFile").addEventListener("change", async function(e){
+    const f = e.target.files[0]; if(!f) return;
+    const msg = document.getElementById("localPickerMsg");
+    msg.style.color = "#7a4f00"; msg.textContent = "⏳ بقرا الملف…";
+    try{
+      const pb = await loadSheetFromFileObject(f);
+      const b = {date: pb.date, units: pb.units, file: pb.file};
+      setBaseline(b);
+      msg.style.color = "#1e8e3e";
+      msg.textContent = `✅ اتقرأ: ${Object.keys(pb.units).length} وحدة` + (pb.date ? ` بتاريخ ${pb.date}` : "");
+      // نعيد تحميل الصفحة عشان كل الحقول تتعبأ
+      setTimeout(()=>location.reload(), 700);
+    }catch(err){
+      msg.style.color = "#c5221f";
+      msg.textContent = "✗ " + err.message;
+    }
+  });
+}
+
+async function init(){
+  initUnits();
+  $("date").value=todayLocal();
+  $("day").value=1;
+  // نجيب شيت اليوم السابق من السيرفر (لو متاح) — وبنقع على الكاش المحلي لو لأ
+  try{
+    const res = await loadBaselineFromServer();
+    showSyncBanner(res.source, res.file);
+    if(res.source === "open-local") return;   // مستني المستخدم يختار الملف
+  }catch(e){ showSyncBanner("local"); }
+  const basicIds=["target","teams","schTotal","schTarget","nurTotal","nurTarget","open"];
+  document.querySelectorAll("input").forEach(el=>{
+    el.addEventListener("input", ()=>{
+      if(el.id!=="unit"&&el.id!=="date"){ calc(); }
+      if(basicIds.includes(el.id)){ saveBasic(); }
+    });
+    el.addEventListener("change", ()=>{
+      if(el.id!=="unit"&&el.id!=="date"){ calc(); }
+      if(basicIds.includes(el.id)){ saveBasic(); }
+    });
+  });
+  $("saveBtn").addEventListener("click", save);
+  calc();
+}
+document.addEventListener("DOMContentLoaded", init);
+</script>
+</body>
+</html>

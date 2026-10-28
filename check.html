@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>فحص الشيت — بلاغ الحملة</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  body{background:#f4f6fa}
+  .box{background:#fff;border-radius:14px;padding:18px 20px;margin:14px 0;box-shadow:0 1px 6px rgba(0,0,0,.07)}
+  .box h2{margin:0 0 12px;font-size:18px;color:#123}
+  .kv{display:grid;grid-template-columns:150px 1fr;gap:6px 12px;font-size:14px}
+  .kv b{color:#456}
+  .kv span{font-family:monospace;direction:ltr;text-align:left;word-break:break-all}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{border-bottom:1px solid #e6eaf2;padding:7px 6px;text-align:right}
+  th{background:#eef2f9;font-weight:bold;color:#123}
+  td.mono{font-family:monospace;direction:ltr;text-align:left;word-break:break-all}
+  .ok{color:#1e8e3e;font-weight:bold}
+  .bad{color:#c5221f;font-weight:bold}
+  .warn{color:#b06000;font-weight:bold}
+  .big{font-size:15px;line-height:1.9}
+  code{background:#eef2f9;padding:2px 6px;border-radius:4px;font-family:monospace;direction:ltr;display:inline-block}
+  .steps li{margin:6px 0;line-height:1.8}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <span class="logo">🔍</span>
+  <div>
+    <h1>فحص الشيت</h1>
+    <p>الصفحة دي بتقولك بالظبط الموقع بيدوّر على إيه ولاقى إيه</p>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <div class="box" id="verdict">
+    <h2>النتيجة</h2>
+    <div id="verdictBody" class="big">⏳ جاري الفحص…</div>
+  </div>
+
+  <div class="box">
+    <h2>مكان الصفحة</h2>
+    <div class="kv" id="where"></div>
+  </div>
+
+  <div class="box">
+    <h2>الملفات اللي جرّبها</h2>
+    <div id="triesWrap" style="overflow-x:auto"><table id="tries"></table></div>
+    <p class="tip" style="margin-top:10px">الحالة <b>404</b> = الملف مش موجود بالاسم ده · <b>200</b> = موجود ومقروء</p>
+  </div>
+
+  <div class="box">
+    <h2>ملفات موجودة في الريبو (اكتشاف GitHub)</h2>
+    <div id="discover" class="big">—</div>
+  </div>
+
+  <div class="box">
+    <h2>جرّب ملف من جهازك</h2>
+    <p class="tip">لو الشيت عندك على الجهاز، اختاره هنا وشوف هل بيتقرأ صح ولا لأ (ده اختبار محلي بس، مش بيرفع حاجة).</p>
+    <input type="file" id="testFile" accept=".xlsx,.xls,.xlsm,.csv">
+    <div id="testOut" class="big" style="margin-top:10px"></div>
+  </div>
+
+  <div class="box">
+    <h2>حل المشكلة</h2>
+    <ol class="steps big">
+      <li>سمّي ملف الشيت <code>baseline.xlsx</code> بالظبط (حروف إنجليزي صغيرة، بدون مسافات).</li>
+      <li>اتأكد إنه في <b>نفس المجلد</b> اللي فيه <code>index.html</code> — مش جوه فولدر تاني.</li>
+      <li>اتأكد إنه اتعمل له <b>Commit</b> فعلاً (مش مجرد Upload لسه مرفوع).</li>
+      <li>استنى دقيقة–دقيقتين بعد الرفع (GitHub بياخد وقت في النشر) واعمل <b>Ctrl + F5</b>.</li>
+      <li>لو لسه: افتح <code>Settings → Pages</code> وشوف الـ Branch والفولدر صح ولا لأ.</li>
+    </ol>
+  </div>
+
+</main>
+
+<script src="sheet-source.js"></script>
+<script src="common.js"></script>
+<script>
+function row(name, status, note){
+  const cls = (status===200 || status==="200") ? "ok"
+            : (status==="شبكة") ? "bad"
+            : (status===404||status==="404") ? "bad" : "warn";
+  return `<tr><td class="mono">${name}</td><td class="${cls}">${status}</td><td>${note||""}</td></tr>`;
+}
+
+(async function(){
+  /* 1) مكان الصفحة */
+  const t = ghTarget();
+  $("where").innerHTML = `
+    <b>البروتوكول</b><span>${location.protocol}${location.protocol==="file:" ? ' ← ⚠️ ده السبب' : ''}</span>
+    <b>الرابط</b><span>${location.href}</span>
+    <b>المسار الأساسي</b><span>${new URL(".", location.href).pathname}</span>
+    <b>الدومين</b><span>${location.hostname}</span>
+    <b>الريبو المكتشف</b><span>${t ? (t.owner+"/"+t.repo+(t.dir?(" · "+t.dir):"")) : "مش GitHub Pages"}</span>
+  `;
+
+  /* 2) الفحص الحقيقي */
+  let res = null;
+  try{ res = await loadBaselineFromServer(); }catch(e){ res = {source:"error", err:e.message}; }
+
+  const diag = sheetDiagnostics();
+
+  const nUnits = (res && res.baseline && res.baseline.units) ? Object.keys(res.baseline.units).length : 0;
+
+  /* الحالة الأخطر: فتح من الجهاز مباشرة — لازم تحذير أول حتى لو فيه نسخة على الجهاز */
+  if(location.protocol === "file:"){
+    $("verdictBody").innerHTML =
+      `<div class="bad">🚫 الموقع مفتوح من جهازك مباشرة (file://) — <u>مش هينفع كده</u></div>
+       <div style="margin-top:10px;line-height:2">
+         المتصفح <b>بيمنع</b> أي صفحة مفتوحة بالدبل كليك من إنها تقرا ملفات جنبها
+         (قيد أمان اسمه CORS — في كروم وإيدج وفايرفوكس كلهم).<br>
+         عشان كده لو رفعت الشيت جنب <code>index.html</code> على جهازك، الموقع مش هيشوفه —
+         رغم إن اختبار الملف اللي تحت بيقول «سليم».
+       </div>
+       <div style="margin-top:12px;background:#fff3cd;padding:12px 14px;border-radius:8px">
+         <b>الحل — أي واحد فيهم:</b>
+         <ol style="margin:8px 0 0;padding-inline-start:22px;line-height:2">
+           <li><b>ارفع الموقع على GitHub Pages</b> وافتحه من الرابط
+               (<code>https://&lt;حسابك&gt;.github.io/&lt;الريبو&gt;/</code>) — ده اللي هيوصل للوحدات.</li>
+           <li><b>أو شغّل السيرفر:</b> <code>node server.js</code> وبعدها افتح
+               <code>http://localhost:3000</code>.</li>
+         </ol>
+       </div>
+       ${nUnits ? `<div style="margin-top:12px;color:#666;font-size:14px">
+         ℹ️ فيه نسخة محفوظة على الجهاز ده (<b>${nUnits} وحدة</b>) من اختيار سابق — بتشتغل على الجهاز ده بس.
+       </div>` : ``}`;
+
+  } else if(nUnits){
+    const src = res.source === "server" ? "السيرفر" :
+                res.source === "folder" ? `ملف الموقع (${res.file})` : "كاش الجهاز";
+    $("verdictBody").innerHTML =
+      `<div class="ok">✅ الشيت اتقرأ بنجاح</div>
+       <div style="margin-top:8px">
+         المصدر: <b>${src}</b><br>
+         عدد الوحدات: <b>${nUnits}</b><br>
+         تاريخ الشيت: <b>${res.baseline.date || "غير مذكور"}</b>
+       </div>
+       <div style="margin-top:10px"><a href="unit.html">← روح لصفحة الوحدة</a> · <a href="admin.html">صفحة الإدارة</a></div>`;
+
+  } else if(res && res.source === "blocked"){
+    $("verdictBody").innerHTML =
+      `<div class="bad">🚫 المتصفح مش قادر يقرا الملفات من الموقع</div>
+       <div style="margin-top:8px;line-height:2">
+         جرّبنا <b>${(res.tried||[]).length}</b> اسم وكل المحاولات فشلت بسبب الشبكة (مش 404).<br>
+         <span style="color:#555">اتأكد إن الصفحة مفتوحة من رابط <code>http(s)://</code> مش من ملف على جهازك.</span>
+       </div>`;
+
+  } else {
+    const tried = (res && res.tried) || [];
+    const all404 = diag.length > 0 && diag.every(d => d.status === 404 || d.status === "404");
+    $("verdictBody").innerHTML =
+      `<div class="bad">✗ مفيش شيت اتقرأ</div>
+       <div style="margin-top:8px">
+         جرّبنا <b>${tried.length || diag.length}</b> اسم ملف على الموقع${all404 ? " وكلهم ردوا <b>404</b> (مش موجودين)" : ""}.<br>
+         <span style="color:#555">لو الملف مرفوع فعلاً، اتأكد إنه في نفس مجلد <code>index.html</code> بالظبط، وإن الرفع اتعمله <b>Commit</b>.</span>
+       </div>`;
+  }
+
+  /* 3) جدول المحاولات */
+  const rows = diag.map(d => row(d.name, d.status, d.note)).join("");
+  $("tries").innerHTML =
+    `<thead><tr><th>الملف</th><th>الحالة</th><th>ملاحظة</th></tr></thead>
+     <tbody>${rows || '<tr><td colspan="3">لسه مفيش محاولات</td></tr>'}</tbody>`;
+
+  /* 4) الاكتشاف */
+  const disc = (res && res.discovered) || sheetDiscovered();
+  const t2 = ghTarget();
+  if(!t2){
+    $("discover").innerHTML = `<span class="warn">الموقع مش على GitHub Pages</span> — الاكتشاف التلقائي بيشتغل على github.io بس.`;
+  } else if(disc && disc.length){
+    $("discover").innerHTML = `<span class="ok">لقينا ${disc.length} ملف:</span><br>` +
+      disc.map(n=>`<code>${n}</code>`).join(" ");
+  } else {
+    $("discover").innerHTML = `<span class="warn">مش قادر أقرا قائمة الملفات من GitHub</span>
+      <div style="font-size:13.5px;color:#555;margin-top:6px">
+        ده بيحصل لو الريبو Private، أو GitHub رفض الطلب مؤقتًا. مش مشكلة — سمّي الملف
+        <code>baseline.xlsx</code> وهيشتغل على طول.
+      </div>`;
+  }
+
+  /* 5) اختبار ملف محلي */
+  $("testFile").addEventListener("change", async e => {
+    const f = e.target.files[0]; if(!f) return;
+    $("testOut").textContent = "⏳ بقرا الملف…";
+    try{
+      const buf = await f.arrayBuffer();
+      const ext = (f.name.split(".").pop()||"").toLowerCase();
+      const pb = await readSheetBuffer(buf, ext === "xlsm" ? "xlsx" : ext);
+      const units = (pb && pb.units) || {};
+      const n = Object.keys(units).length;
+      if(!n){
+        $("testOut").innerHTML = `<span class="bad">✗ الملف مش مقروء كشيت بلاغ</span><br>
+          <span style="font-size:13.5px">${(pb && pb.error) || "مفيش صف فيه «اسم الوحدة»"}</span>`;
+        return;
+      }
+      const missing = UNITS.filter(u => !units[u]);
+      $("testOut").innerHTML =
+        `<span class="ok">✅ الملف سليم</span><br>
+         الوحدات: <b>${n}</b> من ${UNITS.length}
+         ${missing.length ? ` · <span class="warn">ناقص: ${missing.join("، ")}</span>` : ` · <span class="ok">كل الأسماء مطابقة</span>`}<br>
+         تاريخ الشيت: <b>${pb.date || pb.sheetDate || "غير مذكور"}</b><br>
+         <span style="font-size:13.5px;color:#555">سمّي الملف <code>baseline.xlsx</code> وارفعه جنب index.html وهيشتغل على الموقع.</span>`;
+    }catch(err){
+      $("testOut").innerHTML = `<span class="bad">✗ خطأ: ${err.message}</span>`;
+    }
+  });
+})();
+</script>
+</body>
+</html>
